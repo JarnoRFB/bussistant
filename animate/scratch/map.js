@@ -1,3 +1,6 @@
+// Example route for single ride 
+// http://localhost:8000/animate/scratch/?FahrtBezeichner=-12862584&halteid=4734101
+
 const mapbox_token = "pk.eyJ1IjoidGlub20iLCJhIjoiY2ppa2dzOXd2MHhjNDN2b3dkeXlhMzQ3NyJ9.-GK7-nWyeh988RBOhjUwtQ";
 const mymap = L.map('mapid').setView([51.961436, 7.626816], 13);
 L.MakiMarkers.accessToken = mapbox_token;
@@ -26,33 +29,26 @@ const praeambel = function () {
     }
 };
 
-// fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/-12860043")
-//     .then(response => response.json())
-//     .then(response => {
-//         // const animatedMarker = L.animatedMarker(response.geometry.coordinates);
-//         let coords = [];
-//         for (let coord of response.geometry.coordinates){
-//             coords.push([coord[1], coord[0]])
-//         }
-//         const line = L.polyline(coords);
-//         const animatedMarker = L.animatedMarker(line.getLatLngs());
-//         mymap.addLayer(animatedMarker);
 
-//         currentLine = L.geoJSON(response, {style:{color:"#ff1213"}});
-//         currentLine.addTo(fahrtGroup);
+params = new URL(window.location.href).searchParams
 
-//         // for (let coord of response.geometry.coordinates){
-//         //     let marker = L.marker([coord[1], coord[0]]);
 
-//         //     marker.addTo(mymap);
-//         // }
-//     })
 
 exampleSocket.onmessage = function (event) {
     message.textContent = event.data;
     let vehicles = JSON.parse(event.data);
     // vehicles = vehicles.features.filter(vehicle => vehicle.properties.LinienID === '6') 
-    vehicles = vehicles.features
+
+    if (params.has('FahrtBezeichner') && params.has('halteid')){
+        console.log('search params active')
+        // vehicles = vehicles.features
+
+        vehicles = vehicles.features.filter(vehicle => vehicle.properties.FahrtBezeichner === params.get('FahrtBezeichner'))
+
+    } else {
+        console.log('missing param')
+        vehicles = vehicles.features
+    }
     for (let vehicle of vehicles) {
         if (vehicle.properties.operation === "UPDATE") {
             if (vehicle.properties.FahrtBezeichner in markers) {
@@ -65,7 +61,6 @@ exampleSocket.onmessage = function (event) {
                 }
                 let marker = L.marker([vehicle.geometry.coordinates[1], 
                                         vehicle.geometry.coordinates[0]]);
-                // marker.bindTooltip(vehicle.properties.LinienText).openTooltip();
                 marker.title = "Linie " + vehicle.properties.LinienText;
                 marker.fahrtbezeichner = vehicle.properties.FahrtBezeichner;
                 let popUpText = "";
@@ -77,7 +72,7 @@ exampleSocket.onmessage = function (event) {
                 }
                 marker.bindPopup(popUpText).openPopup();
                 marker.on('popupopen', function(event) {
-                    var marker = event.target;
+                    const  marker = event.target;
                     fahrtGroup.clearLayers();
                     httpGetAsync("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+marker.fahrtbezeichner, addLine);
                     httpGetAsync("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+marker.fahrtbezeichner+"/stops", addStops);
@@ -110,7 +105,11 @@ exampleSocket.onmessage = function (event) {
                     markers[vehicle.properties.FahrtBezeichner] = marker;
 
                 })
+                
+                if (params.has('FahrtBezeichner') && params.has('halteid')){
 
+                    showCurrentBusLine(vehicle, params.get('halteid'))
+                }
 
                 console.log('last', lastStop[vehicle.properties.FahrtBezeichner])
                 console.log('current', vehicle.properties.AktHst)
@@ -160,6 +159,43 @@ const delayToColor = delayInMinutes => {
 }
 
 
+const showCurrentBusLine = (vehicle, halteid) => {
+    fahrtGroup.clearLayers();
+    fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+vehicle.properties.FahrtBezeichner)
+    .then(response => response.json())
+    .then(response => {
+        currentLine = L.geoJSON(response, {style:{color:"#ff1213"}});
+        currentLine.addTo(fahrtGroup);
+    });
+
+    fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+vehicle.properties.FahrtBezeichner+"/stops")
+    .then(response => response.json())
+    .then(response => {
+        for (let stop of response.stops) {
+            var marker = {
+                pointToLayer: function (feature, latlng) {
+                    let icon
+                    if (feature.properties.halteid === params.get('halteid')){
+                        icon = L.MakiMarkers.icon({icon: "bus", color: "#06791f", size: 'm'});
+                        mymap.setView(flip(feature.geometry.coordinates), 15)
+
+                    } else {
+                        icon = L.MakiMarkers.icon({icon: "bus", color: "#13f243", size: 's'});
+
+                    }
+                    return L.marker(latlng, {icon: icon, 
+                                            title: stop.properties.haltestelle})                }
+            };
+            var cstop = L.geoJSON(stop, marker);
+            cstop.addTo(fahrtGroup);
+        }
+    });
+}
+
+const flip = coords => {
+    return [coords[1], coords[0]]
+}
+
 const startAnimation = vehicle => {
     fetch(`https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrwege/${vehicle.properties.AktHst}/${vehicle.properties.NachHst}`)
     .then(response => response.json())
@@ -172,7 +208,6 @@ const startAnimation = vehicle => {
         catch {
             console.log('marker not yet there')
         }
-            // const animatedMarker = L.animatedMarker(response.geometry.coordinates);
         let coords = [];
         for (let coord of response.geom.coordinates){ // TODO sollte eigentlich geometry sein
             coords.push([coord[1], coord[0]])
@@ -183,10 +218,6 @@ const startAnimation = vehicle => {
         animatedMarkers[vehicle.properties.FahrtBezeichner] = animatedMarker
         mymap.addLayer(animatedMarker);
 
-        // currentLine = L.geoJSON(response, {style:{color:"#ff1213"}});
-        // currentLine.addTo(fahrtGroup);
-
-        
     })
 }
 
