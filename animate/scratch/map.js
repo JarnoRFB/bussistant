@@ -2,9 +2,10 @@ const mapbox_token = "pk.eyJ1IjoidGlub20iLCJhIjoiY2ppa2dzOXd2MHhjNDN2b3dkeXlhMzQ
 const mymap = L.map('mapid').setView([51.961436, 7.626816], 13);
 L.MakiMarkers.accessToken = mapbox_token;
 
-const lastSeen = {};
+const lastStop = {};
 
 const markers = {};
+const animatedMarkers = {};
 
 
 L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
@@ -50,7 +51,8 @@ const praeambel = function () {
 exampleSocket.onmessage = function (event) {
     message.textContent = event.data;
     let vehicles = JSON.parse(event.data);
-    vehicles = vehicles.features.filter(vehicle => vehicle.properties.LinienID === '6') 
+    // vehicles = vehicles.features.filter(vehicle => vehicle.properties.LinienID === '6') 
+    vehicles = vehicles.features
     for (let vehicle of vehicles) {
         if (vehicle.properties.operation === "UPDATE") {
             if (vehicle.properties.FahrtBezeichner in markers) {
@@ -80,6 +82,7 @@ exampleSocket.onmessage = function (event) {
                     httpGetAsync("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+marker.fahrtbezeichner, addLine);
                     httpGetAsync("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+marker.fahrtbezeichner+"/stops", addStops);
                 });
+
                 fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+marker.fahrtbezeichner+"/stops")
                 .then(response => response.json())
                 .then(response => response.stops.filter(stop => stop.properties.halteid === vehicle.properties.AktHst))
@@ -87,8 +90,6 @@ exampleSocket.onmessage = function (event) {
                     stop = stop[0]
                     console.log('stop', stop)
                     console.log('ab', new Date(stop.properties.abfahrtprognose))
-                    // stop.abfahrtprognose = '2018-10-05T15:09:25+00:00'
-                    // stop.abfahrt = '2018-10-05T15:07:25+00:00'
                     const delay = new Date(stop.properties.abfahrtprognose) - new Date(stop.properties.abfahrt)
                     console.log('delay', delay)
                     let delayInMinutes;
@@ -109,6 +110,15 @@ exampleSocket.onmessage = function (event) {
                     markers[vehicle.properties.FahrtBezeichner] = marker;
 
                 })
+
+
+                console.log('last', lastStop[vehicle.properties.FahrtBezeichner])
+                console.log('current', vehicle.properties.AktHst)
+                if (lastStop[vehicle.properties.FahrtBezeichner] !== vehicle.properties.AktHst){
+                    startAnimation(vehicle)
+                    lastStop[vehicle.properties.FahrtBezeichner] = vehicle.properties.AktHst
+                } 
+
             }
 
  
@@ -147,6 +157,37 @@ const delayToColor = delayInMinutes => {
            delayInMinutes === 1  ? '#FEB24C' :
            delayInMinutes === 0  ? '#008000' :
                                    '#a6a6a6';
+}
+
+
+const startAnimation = vehicle => {
+    fetch(`https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrwege/${vehicle.properties.AktHst}/${vehicle.properties.NachHst}`)
+    .then(response => response.json())
+    .then(response => {
+        try {
+            mymap.removeLayer(animatedMarkers[vehicle.properties.FahrtBezeichner]);
+            console.log('marker removed !!!!!!!!!!!!!!!!!!!')
+
+        }
+        catch {
+            console.log('marker not yet there')
+        }
+            // const animatedMarker = L.animatedMarker(response.geometry.coordinates);
+        let coords = [];
+        for (let coord of response.geom.coordinates){ // TODO sollte eigentlich geometry sein
+            coords.push([coord[1], coord[0]])
+        }
+        const line = L.polyline(coords)
+        const animatedMarker = L.animatedMarker(line.getLatLngs())
+
+        animatedMarkers[vehicle.properties.FahrtBezeichner] = animatedMarker
+        mymap.addLayer(animatedMarker);
+
+        // currentLine = L.geoJSON(response, {style:{color:"#ff1213"}});
+        // currentLine.addTo(fahrtGroup);
+
+        
+    })
 }
 
 function addStops(event) {
