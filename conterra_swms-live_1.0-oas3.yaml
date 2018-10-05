@@ -1,0 +1,454 @@
+openapi: 3.0.0
+info:
+  description: Soll- und Ist-Fahrplandaten der Stadtwerke Münster
+  version: "1.0-oas3"
+  title: "SWMS Live Data"
+
+servers: 
+  - url : https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw
+    description : Prototype API specification Server
+    
+paths:
+  /haltestellen:
+    get:
+      summary: Alle Haltestellen
+      description: Gibt eine Liste aller Haltestellen zurueck
+      responses:
+        '200':
+          description: OK
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/FeatureCollection'
+        default:
+          description: generic error response
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Fehler'
+  /haltestellen/{id}:
+    get:
+      summary : Infos zu einer Haltestelle
+      description: Detailinformationen über eine Haltestelle
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: ID der Haltestelle
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 30
+            default: 30
+      responses:
+        '200':
+          description: OK
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Feature'
+        default:
+          description: generic error response
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Fehler'
+  /haltestellen/{id}/linien:
+    get:
+      summary : Linien an Haltestelle
+      description: Alle Linien die diese HS anfahren
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: ID der Haltestelle
+      responses:
+        '200':
+          description: OK
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Linien'
+        default:
+          description: generic error response
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Fehler'
+  /fahrten:
+    get:
+      summary: Bekannte Fahrten
+      description: Gibt eine Liste aller Sollfahrten zurueck
+      responses:
+        '200':
+          description: OK
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Fahrten'
+        default:
+          description: generic error response
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Fehler'
+  /fahrten/{id}:
+    get:
+      description: Abfrage einer bestimmten Fahrt mit Liniengeometrie
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            minimum: 1
+          description: Fahrtbezeichner
+      responses:
+        '200':
+          description: OK
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Fahrt'
+        default:
+          description: generic error response
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Fehler'
+  /fahrten/{linienid}:
+    get:
+      description: Abfrage aller Sollfahrten der Linie Tag
+      parameters:
+        - name: linienid
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: ID der Linie
+      responses:
+        '200':
+          description: OK
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Fahrten'
+        default:
+          description: generic error response
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Fehler'
+  /fahrten/{fahrtid}/stops:
+    get:
+      description: Gibt eine Liste aller Haltestellenfolge (mit Haltezeiten) zurueck
+      parameters:
+        - name: fahrtid
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Fahrtbezeichner
+      responses:
+        '200':
+          description: OK
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/FeatureCollection'
+  /linien:
+    get:
+      description: Gibt eine Liste aller Linien zurueck
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Linien'
+  /linien/{id}:
+    get:
+      description: Abfrage aller Sollfahrten der Linie pro Tag
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: ID der Linie
+      responses:
+        '200':
+          description: OK
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Linien'
+        default:
+          description: generic error response
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Fehler'
+                
+  /fahrwege/{von_id}/{nach_id}:
+    get:
+      summary : Fahrweggeometrie
+      description: Der Fahrweg von einer Haltestelle zur nächsten
+      parameters:
+        - name: von_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: ID der Von Haltestelle
+        - name: nach_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: ID der Nach Haltestelle
+
+      responses:
+        '200':
+          description: OK
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Feature'
+        default:
+          description: generic error response
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Fehler'
+                
+components:
+  schemas:
+
+    Fehler:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Fehlermeldung
+    
+        
+    Fahrt:
+      type: object
+      properties:
+        richtungstext:
+          type: string
+        richtungsid:
+          type: integer
+        linienid:
+          type: integer
+        betriebstag:
+          type: string
+          format: date
+        fahrtbezeichner:
+          type: string
+        linientext:
+          type: string
+        produktid:
+          type: string
+    Fahrten:
+      type: array
+      items:
+        $ref: '#/components/schemas/Fahrt'
+        
+    Linie:
+      type: object
+      properties:
+        richtungstext:
+          type: string
+        richtungsid:
+          type: string
+        betriebstag:
+          type: string  
+          format: date
+        fahrtbezeichner:
+          type: string
+    Linien:
+      type: array
+      items:
+        $ref: '#/components/schemas/Linie'
+    
+    Geometry:
+      type: object
+      description: GeoJSon geometry
+      discriminator:
+        propertyName: type
+      required:
+        - type
+      externalDocs:
+        url: 'http://geojson.org/geojson-spec.html#geometry-objects'
+      properties:
+        type:
+          type: string
+          enum:
+            - Point
+            - LineString
+            - Polygon
+            - MultiPoint
+            - MultiLineString
+            - MultiPolygon
+          description: the geometry type
+    Point3D:
+      type: array
+      description: Point in 3D space
+      externalDocs:
+        url: 'http://geojson.org/geojson-spec.html#id2'
+      minItems: 2
+      maxItems: 3
+      items:
+        type: number
+    Point:
+      type: object
+      description: GeoJSon geometry
+      externalDocs:
+        url: 'http://geojson.org/geojson-spec.html#id2'
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - properties:
+            coordinates:
+              $ref: '#/components/schemas/Point3D'
+          type: object
+    LineString:
+      type: object
+      description: GeoJSon geometry
+      externalDocs:
+        url: 'http://geojson.org/geojson-spec.html#id3'
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - properties:
+            coordinates:
+              type: array
+              items:
+                $ref: '#/components/schemas/Point3D'
+          type: object
+    Polygon:
+      type: object
+      description: GeoJSon geometry
+      externalDocs:
+        url: 'http://geojson.org/geojson-spec.html#id4'
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - properties:
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Point3D'
+          type: object
+    MultiPoint:
+      type: object
+      description: GeoJSon geometry
+      externalDocs:
+        url: 'http://geojson.org/geojson-spec.html#id5'
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - properties:
+            coordinates:
+              type: array
+              items:
+                $ref: '#/components/schemas/Point3D'
+          type: object
+    MultiLineString:
+      type: object
+      description: GeoJSon geometry
+      externalDocs:
+        url: 'http://geojson.org/geojson-spec.html#id6'
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - properties:
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Point3D'
+          type: object
+    MultiPolygon:
+      type: object
+      description: GeoJSon geometry
+      externalDocs:
+        url: 'http://geojson.org/geojson-spec.html#id6'
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - properties:
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Point3D'
+          type: object
+    GeometryCollection:
+      type: object
+      description: GeoJSon geometry collection
+      required:
+        - type
+        - geometries
+      externalDocs:
+        url: 'http://geojson.org/geojson-spec.html#geometrycollection'
+      properties:
+        type:
+          type: string
+          enum:
+            - GeometryCollection
+        geometries:
+          type: array
+          items:
+            $ref: '#/components/schemas/Geometry'
+    Feature:
+      type: object
+      description: GeoJSon Feature
+      required:
+        - type
+        - id
+        - geometry
+      externalDocs:
+        url: 'https://tools.ietf.org/html/rfc7946#section-3.2'
+      properties:
+        type:
+          type: string
+          enum:
+            - Feature
+        id:
+          type: integer
+        geometry:
+          $ref: '#/components/schemas/GeometryCollection'
+        properties:
+          type: object
+    FeatureCollection:
+      type: object
+      description: GeoJSon Feature collection
+      required:
+        - type
+        - features
+      externalDocs:
+        url: 'https://tools.ietf.org/html/rfc7946#section-3.3'
+      properties:
+        type:
+          type: string
+          enum:
+            - FeatureCollection
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/Feature'
