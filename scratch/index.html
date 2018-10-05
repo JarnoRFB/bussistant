@@ -1,0 +1,216 @@
+<html>
+<head>
+    <style>
+        #mapid {
+            height: 540px;
+        }
+    </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.4/dist/leaflet.css"
+          integrity="sha512-puBpdR0798OZvTTbP4A8Ix/l+A4dHDD0DGqYW6RQ+9jxkRFclaxxQb/SJAWZfWAkuyeQUytO7+7N4QKrDh+drA=="
+          crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.3.4/dist/leaflet.js"
+            integrity="sha512-nMMmRyTVoLYqjP9hrbed9S+FzjZHW5gY1TWCHA5ckwXZBadntCNs8kEqAWdrb9O7rxbCaA4lKTIWjDXZxflOcA=="
+            crossorigin=""></script>
+    <script type="text/javascript">(function () {
+        "use strict";
+        L.MakiMarkers = {
+            accessToken: null,
+            defaultColor: "#0a0",
+            defaultIcon: "circle-stroked",
+            defaultSize: "m",
+            apiUrl: "https://api.mapbox.com/v4/marker/",
+            smallOptions: {
+                iconSize: [20, 50],
+                popupAnchor: [0,-20]
+            },
+            mediumOptions: {
+                iconSize: [30,70],
+                popupAnchor: [0,-30]
+            },
+            largeOptions: {
+                iconSize: [36,90],
+                popupAnchor: [0,-40]
+            }
+        };
+
+        L.MakiMarkers.Icon = L.Icon.extend({
+            options: {
+                //Mapbox API access token, see https://www.mapbox.com/api-documentation/?language=CLI#access-tokens
+                //Instead of setting with each icon, you can set globally as L.MakiMarkers.accessToken
+                accessToken: null,
+                //Maki icon: any valid name, see https://raw.githubusercontent.com/mapbox/maki/master/layouts/all.json
+                icon: L.MakiMarkers.defaultIcon,
+                //Marker color: short or long form hex color code
+                color: L.MakiMarkers.defaultColor,
+                //Marker size: "s" (small), "m" (medium), or "l" (large)
+                size: L.MakiMarkers.defaultSize,
+                shadowAnchor: null,
+                shadowSize: null,
+                shadowUrl: null,
+                className: "maki-marker"
+            },
+
+            initialize: function(options) {
+                var pin;
+                var tokenQuery;
+
+                var accessToken = options.accessToken || L.MakiMarkers.accessToken;
+                if (!accessToken) {
+                    throw new Error("Access to the Mapbox API requires a valid access token.");
+                }
+
+                tokenQuery = "?access_token=" + accessToken;
+                options = L.setOptions(this, options);
+
+                switch (options.size) {
+                    case "s":
+                        L.extend(options, L.MakiMarkers.smallOptions);
+                        break;
+                    case "l":
+                        L.extend(options, L.MakiMarkers.largeOptions);
+                        break;
+                    default:
+                        options.size = "m";
+                        L.extend(options, L.MakiMarkers.mediumOptions);
+                        break;
+                }
+
+                pin = "pin-" + options.size;
+
+                if (options.icon !== null) {
+                    pin += "-" + options.icon;
+                }
+
+                if (options.color !== null) {
+                    if (options.color.charAt(0) === "#") {
+                        options.color = options.color.substr(1);
+                    }
+
+                    pin += "+" + options.color;
+                }
+
+                options.iconUrl = "" + L.MakiMarkers.apiUrl + pin +  ".png" + tokenQuery;
+                options.iconRetinaUrl = L.MakiMarkers.apiUrl + pin + "@2x.png" + tokenQuery;
+            }
+        });
+
+        L.MakiMarkers.icon = function(options) {
+            return new L.MakiMarkers.Icon(options);
+        };
+    })();</script>
+</head>
+<body>
+<h1>Demo Karte</h1>
+<h2 id="vcount">Currently not live</h2>
+<div id="mapid"></div>
+<h2>Last Websocket Frame</h2>
+<!-- 1 -->
+<div id="message"></div>
+
+<script type="text/javascript">
+    var mapbox_token = "pk.eyJ1IjoidGlub20iLCJhIjoiY2ppa2dzOXd2MHhjNDN2b3dkeXlhMzQ3NyJ9.-GK7-nWyeh988RBOhjUwtQ";
+    var mymap = L.map('mapid').setView([51.961436, 7.626816], 13);
+    L.MakiMarkers.accessToken = mapbox_token;
+    var markers = {};
+    L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
+        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+        maxZoom: 18,
+        id: 'mapbox.streets',
+        accessToken: mapbox_token
+    }).addTo(mymap);
+    var fahrtGroup =L.layerGroup();
+    fahrtGroup.addTo(mymap);
+    var message = document.getElementById("message");
+    var exampleSocket = new WebSocket("wss://swms-conterra.fmecloud.com/websocket");
+    var praeambel = function () {
+        exampleSocket.onopen = function (event) {
+            console.log("WebSocket is open now.");
+            vcount.textContent = "Websocket successfully connected.";
+            exampleSocket.send('{ "ws_op":"open","ws_stream_ids":["swmslive"]}');
+        }
+    };
+    // 3
+    var update = function () {
+        exampleSocket.onmessage = function (event) {
+            message.textContent = event.data;
+            var vehicles = JSON.parse(event.data);
+            for (var key in vehicles.features) {
+                if (vehicles.features[key].properties.operation === "UPDATE") {
+                    if (vehicles.features[key].properties.FahrtBezeichner in markers) {
+                        markers[vehicles.features[key].properties.FahrtBezeichner].setLatLng([vehicles.features[key].geometry.coordinates[1], vehicles.features[key].geometry.coordinates[0]]);
+                        markers[vehicles.features[key].properties.FahrtBezeichner].update();
+                    } else {
+                        var label = vehicles.features[key].properties.LinienText;
+                        if (label.startsWith("R") || label.startsWith("E") || label.startsWith("N")) {
+                            label = label.substr(1);
+                        }
+                        var icon = L.MakiMarkers.icon({icon: label, color: "#1e19bb", size: "m"});
+                        var marker = L.marker([vehicles.features[key].geometry.coordinates[1], vehicles.features[key].geometry.coordinates[0]], {icon: icon});
+                        marker.bindTooltip(vehicles.features[key].properties.LinienText).openTooltip();
+                        marker.title = "Linie " + vehicles.features[key].properties.LinienText;
+                        marker.fahrtbezeichner = vehicles.features[key].properties.FahrtBezeichner;
+                        var p = "";
+                        try {
+                            p = JSON.stringify(vehicles.features[key], null, 2);
+                        }
+                        catch (err) {
+                           console.log(err)
+                        }
+                        marker.bindPopup(p).openPopup();
+                        marker.on('popupopen', function(e) {
+                            var marker = e.target;
+                            fahrtGroup.clearLayers();
+                            httpGetAsync("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+marker.fahrtbezeichner,addLine);
+                            httpGetAsync("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+marker.fahrtbezeichner+"/stops",addStops);
+                        });
+
+                        marker.addTo(mymap);
+                        markers[vehicles.features[key].properties.FahrtBezeichner] = marker;
+                    }
+                } else {
+                    if (vehicles.features[key].properties.FahrtBezeichner in markers) {
+                        mymap.removeLayer(markers[vehicles.features[key].properties.FahrtBezeichner]);
+                        delete(markers[vehicles.features[key].properties.FahrtBezeichner]);
+                    }
+                }
+
+            }
+            vcount.textContent = "Currently live: " + Object.keys(markers).length + " Vehicles"
+        };
+    };
+    //-12847047
+    function httpGetAsync(theUrl, callback)
+    {
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.onreadystatechange = function() {
+            if (xmlHttp.readyState == 4 && xmlHttp.status == 200)
+                callback(xmlHttp.responseText);
+        };
+        xmlHttp.open("GET", theUrl, true); // true for asynchronous
+        xmlHttp.send(null);
+    };
+
+    function addLine(e) {
+        currentLine = L.geoJSON(JSON.parse(e),{style:{color:"#ff1213"}});
+        currentLine.addTo(fahrtGroup);
+    };
+    function addStops(e) {
+        response = JSON.parse(e);
+        for (var key in response.stops) {
+            stop = response.stops[key];
+            var icon = L.MakiMarkers.icon({icon: "bus", color: "#13f243", size: "s"});
+            var marker = {
+                pointToLayer: function (feature, latlng) {
+                    return L.marker(latlng, {icon: icon,title : response.stops[key].properties.haltestelle}).bindPopup(JSON.stringify(response.stops[key].properties, null, 2)).openPopup();
+                }
+            };
+            var cstop = L.geoJSON(stop, marker);
+            cstop.addTo(fahrtGroup);
+        }
+    };
+    window.setTimeout(praeambel);
+    window.setTimeout(update);
+
+</script>
+</body>
+</html>
