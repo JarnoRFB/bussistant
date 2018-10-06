@@ -1,5 +1,5 @@
-import twitter, re, datetime, pandas as pd, pickle
-
+import twitter, re, pandas as pd, pickle
+from datetime import datetime
 
 class twitterminer():
     request_limit = 20
@@ -41,7 +41,7 @@ class twitterminer():
 
             print(tweet)
             if tweet.retweeted_status is None:
-                mined = (tweet.created_at, tweet.full_text, tweet.user.name)
+                mined = (datetime.strptime(tweet.created_at, "%a %b %d %H:%M:%S %z %Y"), tweet.full_text, tweet.user.name)
                 data.append(mined)
         return data
 
