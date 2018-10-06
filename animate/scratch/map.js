@@ -99,8 +99,12 @@ const updateMarkerPosition = (vehicle, marker) => {
 
 const removeMarker = (vehicle) => {
     if (vehicle.properties.FahrtBezeichner in markers) {
-        mymap.removeLayer(markers[vehicle.properties.FahrtBezeichner]);
+        currentMarkerLayer.removeLayer(markers[vehicle.properties.FahrtBezeichner]);
         delete(markers[vehicle.properties.FahrtBezeichner]);
+    }
+    if (vehicle.properties.FahrtBezeichner in animatedMarkers) {
+        animatedMarkerLayer.removeLayer(animatedMarkers[vehicle.properties.FahrtBezeichner]);
+        delete(animatedMarkers[vehicle.properties.FahrtBezeichner]);
     }
 }
 
