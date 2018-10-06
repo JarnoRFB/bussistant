@@ -205,7 +205,8 @@ function httpGetAsync(theUrl, callback){
 
 
 function addLine(event) {
-    currentLine = L.geoJSON(JSON.parse(event), {style:{color:"#ff1213"}});
+    var line = JSON.parse(event);
+    currentLine = L.geoJSON(line, {style:{color:"#"+line.properties.farbe}});
     currentLine.addTo(fahrtGroup);
 };
 
