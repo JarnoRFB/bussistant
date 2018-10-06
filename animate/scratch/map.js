@@ -21,7 +21,7 @@ L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={
 }).addTo(mymap);
 
 const fahrtGroup = L.layerGroup().addTo(mymap);
-const currentMarkerLayer = L.layerGroup().addTo(mymap);
+const currentMarkerLayer = L.layerGroup();
 const animatedMarkerLayer = L.layerGroup().addTo(mymap);
 const heatmapLayer = L.layerGroup();
 
@@ -264,7 +264,10 @@ const startAnimation = async (vehicle,delay) => {
     animatedMarker.delay = delay;
 
     await styleMarkerByDelay(vehicle, animatedMarker, makeLabel(vehicle.properties.LinienText))
-
+    if (vehicle.properties.FahrtBezeichner in animatedMarkers) {
+        delete(animatedMarkers[vehicle.properties.FahrtBezeichner]);
+        animatedMarkerLayer.removeLayer(animatedMarkers[vehicle.properties.FahrtBezeichner]);
+    }
     animatedMarkers[vehicle.properties.FahrtBezeichner] = animatedMarker
     animatedMarkerLayer.addLayer(animatedMarker);
 
