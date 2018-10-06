@@ -213,31 +213,14 @@ const flip = coords => {
 }
 
 const startAnimation = vehicle => {
-    fetch(`https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrwege/${vehicle.properties.AktHst}/${vehicle.properties.NachHst}`)
-    .then(response => response.json())
-    .then(response => {
-        try {
-            mymap.removeLayer(animatedMarkers[vehicle.properties.FahrtBezeichner]);
-            console.log('marker removed !!!!!!!!!!!!!!!!!!!')
-
-        }
-        catch {
-            console.log('marker not yet there')
-        }
-        let coords = [];
-        for (let coord of response.geom.coordinates){ // TODO sollte eigentlich geometry sein
-            coords.push([coord[1], coord[0]])
-        }
-        const line = L.polyline(coords)
-        const animatedMarker = L.animatedMarker(line.getLatLngs(), {
-            distance: 1,
-            interval: 5000,
-        })
-
-        animatedMarkers[vehicle.properties.FahrtBezeichner] = animatedMarker
-        mymap.addLayer(animatedMarker);
-
+    const line = L.GeoJSON.geometryToLayer(vehicle.properties.fahrweg);
+    const animatedMarker = L.animatedMarker(line.getLatLngs(), {
+        distance: 1,
+        interval: 5000,
     })
+
+    animatedMarkers[vehicle.properties.FahrtBezeichner] = animatedMarker
+    mymap.addLayer(animatedMarker);
 }
 
 function addStops(event) {
