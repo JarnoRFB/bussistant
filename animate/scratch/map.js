@@ -94,7 +94,7 @@ const updateMarkers = async (vehicle) => {
     console.log('last', lastStop[vehicle.properties.FahrtBezeichner])
     console.log('current', vehicle.properties.AktHst)
     if (lastStop[vehicle.properties.FahrtBezeichner] !== vehicle.properties.AktHst){
-        startAnimation(vehicle)
+        startAnimation(vehicle,marker.delay)
         lastStop[vehicle.properties.FahrtBezeichner] = vehicle.properties.AktHst
     } 
 }
@@ -254,13 +254,14 @@ const flip = coords => {
 }
 
 
-const startAnimation = async (vehicle) => {
+const startAnimation = async (vehicle,delay) => {
     const line = L.GeoJSON.geometryToLayer(vehicle.properties.fahrweg)
     console.log('line', line)
     const animatedMarker = L.animatedMarker(line.getLatLngs(), {
         distance: 1,
         interval: 5000
-    })
+    });
+    animatedMarker.delay = delay;
 
     await styleMarkerByDelay(vehicle, animatedMarker, makeLabel(vehicle.properties.LinienText))
 
