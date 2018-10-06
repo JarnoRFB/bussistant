@@ -51,26 +51,46 @@ exampleSocket.onmessage = function (event) {
     }
     for (let vehicle of vehicles) {
         if (vehicle.properties.operation === "UPDATE") {
+            let marker
+
+            let label = vehicle.properties.LinienText
+            if (label.startsWith("R") || label.startsWith("E") || label.startsWith("N")) {
+                label = label.substr(1);
+            }
+
             if (vehicle.properties.FahrtBezeichner in markers) {
+                marker = markers[vehicle.properties.FahrtBezeichner]
                 markers[vehicle.properties.FahrtBezeichner].setLatLng([vehicle.geometry.coordinates[1], vehicle.geometry.coordinates[0]]);
                 markers[vehicle.properties.FahrtBezeichner].update();
             } else {
-                let label = vehicle.properties.LinienText;
-                if (label.startsWith("R") || label.startsWith("E") || label.startsWith("N")) {
-                    label = label.substr(1);
-                }
-                let marker = L.marker([vehicle.geometry.coordinates[1], 
+                
+                
+                marker = L.marker([vehicle.geometry.coordinates[1], 
                                         vehicle.geometry.coordinates[0]]);
                 marker.title = "Linie " + vehicle.properties.LinienText;
                 marker.fahrtbezeichner = vehicle.properties.FahrtBezeichner;
-                let popUpText = "";
+                
+
+                
+                
+                
+                if (params.has('FahrtBezeichner') && params.has('halteid')){
+                    showCurrentBusLine(vehicle, params.get('halteid'))
+                }
+
+                
+
+            }
+
+
+            let popUpText = "";
                 try {
                     popUpText = JSON.stringify(vehicle, null, 2);
                 }
                 catch (err) {
                     console.log(err)
                 }
-                marker.bindPopup(popUpText).openPopup();
+                marker.bindPopup(popUpText)
                 marker.on('popupopen', function(event) {
                     const  marker = event.target;
                     fahrtGroup.clearLayers();
@@ -78,15 +98,14 @@ exampleSocket.onmessage = function (event) {
                     httpGetAsync("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+marker.fahrtbezeichner+"/stops", addStops);
                 });
 
-                fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+vehicle.properties.FahrtBezeichner+"/stops")
+            fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+vehicle.properties.FahrtBezeichner+"/stops")
                 .then(response => response.json())
                 .then(response => response.stops.filter(stop => stop.properties.halteid === vehicle.properties.AktHst))
                 .then(stop => {
                     stop = stop[0]
-                    console.log('stop', stop)
-                    console.log('ab', new Date(stop.properties.abfahrtprognose))
+                    // console.log('stop', stop)
                     const delay = new Date(stop.properties.abfahrtprognose) - new Date(stop.properties.abfahrt)
-                    console.log('delay', delay)
+                    // console.log('delay', delay)
                     let delayInMinutes;
                     if (isNaN(delay)){
                         delayInMinutes = 'unknown'
@@ -97,33 +116,25 @@ exampleSocket.onmessage = function (event) {
                 })
                 .then(delayInMinutes => {
                     marker.bindTooltip(`${delayInMinutes} minutes delay`).openTooltip()
-                    // const icon = L.MakiMarkers.icon({icon: label, 
-                    //                                  color: delayToColor(delayInMinutes), 
-                    //                                  size: "m"});
-                    const icon = L.divIcon(
-                        {classname: 'my-div-icon', 
-                         html: '<img class="busicon" src="Bus-logo.svg" alt="Kiwi standing on oval"></img>'
-                    });
+                    const icon = L.MakiMarkers.icon({icon: label, 
+                                                     color: delayToColor(delayInMinutes), 
+                                                     size: "m"});
+                    // const icon = L.divIcon(
+                    //     {classname: 'my-div-icon', 
+                    //      html: '<img class="busicon" src="Bus-logo.svg" alt="Kiwi standing on oval"></img>'
+                    // });
                     marker.setIcon(icon)
                     marker.addTo(mymap);
                     markers[vehicle.properties.FahrtBezeichner] = marker;
 
                 })
-                
-                if (params.has('FahrtBezeichner') && params.has('halteid')){
 
-                    showCurrentBusLine(vehicle, params.get('halteid'))
-                }
-
-                console.log('last', lastStop[vehicle.properties.FahrtBezeichner])
-                console.log('current', vehicle.properties.AktHst)
-                if (lastStop[vehicle.properties.FahrtBezeichner] !== vehicle.properties.AktHst){
-                    startAnimation(vehicle)
-                    lastStop[vehicle.properties.FahrtBezeichner] = vehicle.properties.AktHst
-                } 
-
-            }
-
+            console.log('last', lastStop[vehicle.properties.FahrtBezeichner])
+            console.log('current', vehicle.properties.AktHst)
+            if (lastStop[vehicle.properties.FahrtBezeichner] !== vehicle.properties.AktHst){
+                startAnimation(vehicle)
+                lastStop[vehicle.properties.FahrtBezeichner] = vehicle.properties.AktHst
+            } 
  
 
         } else {
@@ -150,13 +161,13 @@ function httpGetAsync(theUrl, callback)
 };
 
 function addLine(event) {
-    currentLine = L.geoJSON(JSON.parse(event),{style:{color:"#ff1213"}});
+    currentLine = L.geoJSON(JSON.parse(event), {style:{color:"#ff1213"}});
     currentLine.addTo(fahrtGroup);
 };
 
 const delayToColor = delayInMinutes => {
-    return delayInMinutes > 10   ? '#800026' :
-           delayInMinutes > 5    ? '#BD0026' :
+    return delayInMinutes >= 10  ? '#800026' :
+           delayInMinutes >= 5   ? '#BD0026' :
            delayInMinutes >= 2   ? '#FD8D3C' :
            delayInMinutes === 1  ? '#FEB24C' :
            delayInMinutes === 0  ? '#008000' :
@@ -218,7 +229,10 @@ const startAnimation = vehicle => {
             coords.push([coord[1], coord[0]])
         }
         const line = L.polyline(coords)
-        const animatedMarker = L.animatedMarker(line.getLatLngs())
+        const animatedMarker = L.animatedMarker(line.getLatLngs(), {
+            distance: 1,
+            interval: 5000,
+        })
 
         animatedMarkers[vehicle.properties.FahrtBezeichner] = animatedMarker
         mymap.addLayer(animatedMarker);
