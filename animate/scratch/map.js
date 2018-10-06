@@ -139,37 +139,6 @@ const bindPopup = (vehicle, marker) => {
 }
 
 
-// const styleMarkerByDelay = async (vehicle, marker, label) => {
-//     fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+vehicle.properties.FahrtBezeichner+"/stops")
-//         .then(response => response.json())
-//         .then(response => response.stops.filter(stop => stop.properties.halteid === vehicle.properties.AktHst))
-//         .then(stop => {
-//             stop = stop[0]
-//             // console.log('stop', stop)
-//             const delay = new Date(stop.properties.abfahrtprognose) - new Date(stop.properties.abfahrt)
-//             // console.log('delay', delay)
-//             let delayInMinutes;
-//             if (isNaN(delay)){
-//                 delayInMinutes = 'unknown'
-//             } else {
-//                 delayInMinutes = new Date(delay).getMinutes()
-//             }
-//             return delayInMinutes
-//         })
-//         .then(delayInMinutes => {
-//             marker.bindTooltip(`${delayInMinutes} minutes delay`)
-//             const icon = L.MakiMarkers.icon({icon: label, 
-//                                              color: delayToColor(delayInMinutes), 
-//                                              size: "m"});
-//             // const icon = L.divIcon(
-//             //     {classname: 'my-div-icon', 
-//             //      html: '<img class="busicon" src="Bus-logo.svg" alt="Kiwi standing on oval"></img>'
-//             // });
-//             marker.setIcon(icon)
-//         })
-// }
-
-
 const styleMarkerByDelay = async (vehicle, marker, label) => {
     let response = await fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+vehicle.properties.FahrtBezeichner+"/stops")
     response = await response.json()
@@ -271,20 +240,8 @@ const flip = coords => {
 
 
 const startAnimation = async (vehicle) => {
-    let response = await fetch(`https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrwege/${vehicle.properties.AktHst}/${vehicle.properties.NachHst}`)
-    response = await response.json()
-    try {
-        animatedMarkerLayer.removeLayer(animatedMarkers[vehicle.properties.FahrtBezeichner]);
-        console.log('marker removed !!!!!!!!!!!!!!!!!!!')
-    }
-    catch(error) {
-        console.log('marker not yet there')
-    }
-    let coords = [];
-    for (let coord of response.geom.coordinates){ // TODO sollte eigentlich geometry sein
-        coords.push([coord[1], coord[0]])
-    }
-    const line = L.polyline(coords)
+    const line = L.GeoJSON.geometryToLayer(vehicle.properties.fahrweg)
+    console.log('line', line)
     const animatedMarker = L.animatedMarker(line.getLatLngs(), {
         distance: 1,
         interval: 5000
@@ -318,10 +275,8 @@ const toggleDensityLayer = async () => {
     console.log('heatmap')
     let heatmap_data = await fetch('heatmap_data.json')
     heatmap_data = await heatmap_data.json()
-    console.log(heatmap_data.meanDelays)
     data = []
     for (let stopInfo of Object.values(heatmap_data.meanDelays)){
-            console.log([stopInfo.coordinates[1], stopInfo.coordinates[0], stopInfo.mean])
             data.push([stopInfo.coordinates[1], stopInfo.coordinates[0], stopInfo.mean])
         }
     const heat = L.heatLayer(data, {radius: 25, minOpacity: 0.4, max: heatmap_data.maxDelay}).addTo(heatmapLayer)
