@@ -11,15 +11,29 @@ const markers = {};
 const animatedMarkers = {};
 
 
+
+
 L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
     attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
     maxZoom: 18,
     id: 'mapbox.streets',
     accessToken: mapbox_token
 }).addTo(mymap);
-const fahrtGroup = L.layerGroup();
-fahrtGroup.addTo(mymap);
-var message = document.getElementById("message");
+
+const fahrtGroup = L.layerGroup().addTo(mymap);
+const currentMarkerLayer = L.layerGroup()
+const animatedMarkerLayer = L.layerGroup().addTo(mymap)
+const heatmapLayer = L.layerGroup()
+
+const overlayMaps = {
+    'Letzte Position': currentMarkerLayer,
+    'Live Position': animatedMarkerLayer,
+    'Verspätungsdichte': heatmapLayer,
+};
+
+L.control.layers(overlayMaps).addTo(mymap);
+
+
 const exampleSocket = new WebSocket("wss://swms-conterra.fmecloud.com/websocket");
 const praeambel = function () {
     exampleSocket.onopen = function (event) {
@@ -33,124 +47,153 @@ const praeambel = function () {
 params = new URL(window.location.href).searchParams
 
 
-
-exampleSocket.onmessage = function (event) {
-    // message.textContent = event.data;
+exampleSocket.onmessage = async function (event) {
     let vehicles = JSON.parse(event.data);
-    // vehicles = vehicles.features.filter(vehicle => vehicle.properties.LinienID === '6') 
-
-    if (params.has('FahrtBezeichner') && params.has('halteid')){
-        console.log('search params active')
-        // vehicles = vehicles.features
-
-        vehicles = vehicles.features.filter(vehicle => vehicle.properties.FahrtBezeichner === params.get('FahrtBezeichner'))
-
-    } else {
-        console.log('missing param')
-        vehicles = vehicles.features
-    }
+    vehicles = filterBusses(vehicles, params)
+    console.log(vehicles)
     for (let vehicle of vehicles) {
         if (vehicle.properties.operation === "UPDATE") {
-            let marker
-
-            let label = vehicle.properties.LinienText
-            if (label.startsWith("R") || label.startsWith("E") || label.startsWith("N")) {
-                label = label.substr(1);
-            }
-
-            if (vehicle.properties.FahrtBezeichner in markers) {
-                marker = markers[vehicle.properties.FahrtBezeichner]
-                markers[vehicle.properties.FahrtBezeichner].setLatLng([vehicle.geometry.coordinates[1], vehicle.geometry.coordinates[0]]);
-                markers[vehicle.properties.FahrtBezeichner].update();
-            } else {
-                
-                
-                marker = L.marker([vehicle.geometry.coordinates[1], 
-                                        vehicle.geometry.coordinates[0]]);
-                marker.title = "Linie " + vehicle.properties.LinienText;
-                marker.fahrtbezeichner = vehicle.properties.FahrtBezeichner;
-                
-
-                
-                
-                
-                if (params.has('FahrtBezeichner') && params.has('halteid')){
-                    showCurrentBusLine(vehicle, params.get('halteid'))
-                }
-
-                
-
-            }
-
-
-            let popUpText = "";
-                try {
-                    popUpText = JSON.stringify(vehicle, null, 2);
-                }
-                catch (err) {
-                    console.log(err)
-                }
-                marker.bindPopup(popUpText)
-                marker.on('popupopen', function(event) {
-                    const  marker = event.target;
-                    fahrtGroup.clearLayers();
-                    httpGetAsync("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+marker.fahrtbezeichner, addLine);
-                    httpGetAsync("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+marker.fahrtbezeichner+"/stops", addStops);
-                });
-
-            fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+vehicle.properties.FahrtBezeichner+"/stops")
-                .then(response => response.json())
-                .then(response => response.stops.filter(stop => stop.properties.halteid === vehicle.properties.AktHst))
-                .then(stop => {
-                    stop = stop[0]
-                    // console.log('stop', stop)
-                    const delay = new Date(stop.properties.abfahrtprognose) - new Date(stop.properties.abfahrt)
-                    // console.log('delay', delay)
-                    let delayInMinutes;
-                    if (isNaN(delay)){
-                        delayInMinutes = 'unknown'
-                    } else {
-                        delayInMinutes = new Date(delay).getMinutes()
-                    }
-                    return delayInMinutes
-                })
-                .then(delayInMinutes => {
-                    marker.bindTooltip(`${delayInMinutes} minutes delay`).openTooltip()
-                    const icon = L.MakiMarkers.icon({icon: label, 
-                                                     color: delayToColor(delayInMinutes), 
-                                                     size: "m"});
-                    // const icon = L.divIcon(
-                    //     {classname: 'my-div-icon', 
-                    //      html: '<img class="busicon" src="Bus-logo.svg" alt="Kiwi standing on oval"></img>'
-                    // });
-                    marker.setIcon(icon)
-                    marker.addTo(mymap);
-                    markers[vehicle.properties.FahrtBezeichner] = marker;
-
-                })
-
-            console.log('last', lastStop[vehicle.properties.FahrtBezeichner])
-            console.log('current', vehicle.properties.AktHst)
-            if (lastStop[vehicle.properties.FahrtBezeichner] !== vehicle.properties.AktHst){
-                startAnimation(vehicle)
-                lastStop[vehicle.properties.FahrtBezeichner] = vehicle.properties.AktHst
-            } 
- 
-
+            updateMarkers(vehicle)
         } else {
-            if (vehicle.properties.FahrtBezeichner in markers) {
-                mymap.removeLayer(markers[vehicle.properties.FahrtBezeichner]);
-                delete(markers[vehicle.properties.FahrtBezeichner]);
-            }
+            removeMarker(vehicle)
         }
-
     }
-    // vcount.textContent = "Currently live: " + Object.keys(markers).length + " Vehicles"
 };
 
 
-function httpGetAsync(theUrl, callback)
-{
+const updateMarkers = async (vehicle) => {
+    let marker
+    let label = makeLabel(vehicle.properties.LinienText)
+
+    if (vehicle.properties.FahrtBezeichner in markers) {
+        marker = markers[vehicle.properties.FahrtBezeichner]
+        updateMarkerPosition(vehicle, marker)
+    } else { 
+        marker = makeMarker(vehicle)
+        
+        if (params.has('FahrtBezeichner') && params.has('halteid')){
+            showCurrentBusLine(vehicle, params.get('halteid'))
+        }
+    }
+
+    bindPopup(vehicle, marker)    
+
+    await styleMarkerByDelay(vehicle, marker, label)  
+    marker.addTo(currentMarkerLayer)
+    markers[vehicle.properties.FahrtBezeichner] = marker  
+
+    console.log('last', lastStop[vehicle.properties.FahrtBezeichner])
+    console.log('current', vehicle.properties.AktHst)
+    if (lastStop[vehicle.properties.FahrtBezeichner] !== vehicle.properties.AktHst){
+        startAnimation(vehicle)
+        lastStop[vehicle.properties.FahrtBezeichner] = vehicle.properties.AktHst
+    } 
+}
+
+
+const updateMarkerPosition = (vehicle, marker) => {
+    marker.setLatLng([vehicle.geometry.coordinates[1], vehicle.geometry.coordinates[0]]);
+    marker.update();
+}
+
+
+const removeMarker = (vehicle) => {
+    if (vehicle.properties.FahrtBezeichner in markers) {
+        mymap.removeLayer(markers[vehicle.properties.FahrtBezeichner]);
+        delete(markers[vehicle.properties.FahrtBezeichner]);
+    }
+}
+
+
+const makeMarker = (vehicle) => {
+    marker = L.marker([vehicle.geometry.coordinates[1], vehicle.geometry.coordinates[0]]);
+    marker.title = "Linie " + vehicle.properties.LinienText;
+    marker.fahrtbezeichner = vehicle.properties.FahrtBezeichner;
+    return marker
+}
+
+
+const makeLabel = (LinienText) => {
+    if (LinienText.startsWith("R") || LinienText.startsWith("E") || LinienText.startsWith("N")) {
+        LinienText = LinienText.substr(1)
+    }
+    return LinienText
+}
+
+
+const bindPopup = (vehicle, marker) => {
+    let popUpText = "";
+    try {
+        popUpText = JSON.stringify(vehicle, null, 2);
+    }
+    catch (err) {
+        console.log(err)
+    }
+    marker.bindPopup(popUpText)
+    marker.on('popupopen', function(event) {
+        const  marker = event.target;
+        fahrtGroup.clearLayers();
+        httpGetAsync("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+marker.fahrtbezeichner, addLine);
+        httpGetAsync("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+marker.fahrtbezeichner+"/stops", addStops);
+    });
+}
+
+
+// const styleMarkerByDelay = async (vehicle, marker, label) => {
+//     fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+vehicle.properties.FahrtBezeichner+"/stops")
+//         .then(response => response.json())
+//         .then(response => response.stops.filter(stop => stop.properties.halteid === vehicle.properties.AktHst))
+//         .then(stop => {
+//             stop = stop[0]
+//             // console.log('stop', stop)
+//             const delay = new Date(stop.properties.abfahrtprognose) - new Date(stop.properties.abfahrt)
+//             // console.log('delay', delay)
+//             let delayInMinutes;
+//             if (isNaN(delay)){
+//                 delayInMinutes = 'unknown'
+//             } else {
+//                 delayInMinutes = new Date(delay).getMinutes()
+//             }
+//             return delayInMinutes
+//         })
+//         .then(delayInMinutes => {
+//             marker.bindTooltip(`${delayInMinutes} minutes delay`)
+//             const icon = L.MakiMarkers.icon({icon: label, 
+//                                              color: delayToColor(delayInMinutes), 
+//                                              size: "m"});
+//             // const icon = L.divIcon(
+//             //     {classname: 'my-div-icon', 
+//             //      html: '<img class="busicon" src="Bus-logo.svg" alt="Kiwi standing on oval"></img>'
+//             // });
+//             marker.setIcon(icon)
+//         })
+// }
+
+
+const styleMarkerByDelay = async (vehicle, marker, label) => {
+    let response = await fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+vehicle.properties.FahrtBezeichner+"/stops")
+    response = await response.json()
+    response = response.stops.filter(stop => stop.properties.halteid === vehicle.properties.AktHst)
+    stop = response[0]
+    const delay = new Date(stop.properties.abfahrtprognose) - new Date(stop.properties.abfahrt)
+    let delayInMinutes;
+    if (isNaN(delay)){
+        delayInMinutes = 'unknown'
+    } else {
+        delayInMinutes = new Date(delay).getMinutes()
+    }
+    marker.bindTooltip(`${delayInMinutes} minutes delay`)
+    const icon = L.MakiMarkers.icon({icon: label, 
+                                        color: delayToColor(delayInMinutes), 
+                                        size: "m"});
+    // const icon = L.divIcon(
+    //     {classname: 'my-div-icon', 
+    //      html: '<img class="busicon" src="Bus-logo.svg" alt="Kiwi standing on oval"></img>'
+    // });
+    marker.setIcon(icon)
+}
+
+function httpGetAsync(theUrl, callback){
     var xmlHttp = new XMLHttpRequest();
     xmlHttp.onreadystatechange = function() {
         if (xmlHttp.readyState == 4 && xmlHttp.status == 200)
@@ -160,10 +203,23 @@ function httpGetAsync(theUrl, callback)
     xmlHttp.send(null);
 };
 
+
 function addLine(event) {
     currentLine = L.geoJSON(JSON.parse(event), {style:{color:"#ff1213"}});
     currentLine.addTo(fahrtGroup);
 };
+
+
+const filterBusses = (busses, filterParams) => {
+    if (filterParams.has('FahrtBezeichner') && filterParams.has('halteid')){
+        console.log('search params active')
+        busses = busses.features.filter(vehicle => vehicle.properties.FahrtBezeichner === filterParams.get('FahrtBezeichner'))
+    } else {
+        console.log('missing params')
+        busses = busses.features
+    }
+    return busses
+}
 
 const delayToColor = delayInMinutes => {
     return delayInMinutes >= 10  ? '#800026' :
@@ -173,7 +229,6 @@ const delayToColor = delayInMinutes => {
            delayInMinutes === 0  ? '#008000' :
                                    '#a6a6a6';
 }
-
 
 const showCurrentBusLine = (vehicle, halteid) => {
     fahrtGroup.clearLayers();
@@ -208,37 +263,39 @@ const showCurrentBusLine = (vehicle, halteid) => {
     });
 }
 
+
 const flip = coords => {
     return [coords[1], coords[0]]
 }
 
-const startAnimation = vehicle => {
-    fetch(`https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrwege/${vehicle.properties.AktHst}/${vehicle.properties.NachHst}`)
-    .then(response => response.json())
-    .then(response => {
-        try {
-            mymap.removeLayer(animatedMarkers[vehicle.properties.FahrtBezeichner]);
-            console.log('marker removed !!!!!!!!!!!!!!!!!!!')
 
-        }
-        catch {
-            console.log('marker not yet there')
-        }
-        let coords = [];
-        for (let coord of response.geom.coordinates){ // TODO sollte eigentlich geometry sein
-            coords.push([coord[1], coord[0]])
-        }
-        const line = L.polyline(coords)
-        const animatedMarker = L.animatedMarker(line.getLatLngs(), {
-            distance: 1,
-            interval: 5000,
-        })
-
-        animatedMarkers[vehicle.properties.FahrtBezeichner] = animatedMarker
-        mymap.addLayer(animatedMarker);
-
+const startAnimation = async (vehicle) => {
+    let response = await fetch(`https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrwege/${vehicle.properties.AktHst}/${vehicle.properties.NachHst}`)
+    response = await response.json()
+    try {
+        animatedMarkerLayer.removeLayer(animatedMarkers[vehicle.properties.FahrtBezeichner]);
+        console.log('marker removed !!!!!!!!!!!!!!!!!!!')
+    }
+    catch(error) {
+        console.log('marker not yet there')
+    }
+    let coords = [];
+    for (let coord of response.geom.coordinates){ // TODO sollte eigentlich geometry sein
+        coords.push([coord[1], coord[0]])
+    }
+    const line = L.polyline(coords)
+    const animatedMarker = L.animatedMarker(line.getLatLngs(), {
+        distance: 1,
+        interval: 5000
     })
+
+    await styleMarkerByDelay(vehicle, animatedMarker, makeLabel(vehicle.properties.LinienText))
+
+    animatedMarkers[vehicle.properties.FahrtBezeichner] = animatedMarker
+    animatedMarkerLayer.addLayer(animatedMarker);
+
 }
+
 
 function addStops(event) {
     response = JSON.parse(event);
@@ -266,9 +323,9 @@ const toggleDensityLayer = async () => {
             console.log([stopInfo.coordinates[1], stopInfo.coordinates[0], stopInfo.mean])
             data.push([stopInfo.coordinates[1], stopInfo.coordinates[0], stopInfo.mean])
         }
-    const heat = L.heatLayer(data, {radius: 25, minOpacity: 0.4, max: heatmap_data.maxDelay}).addTo(mymap)
+    const heat = L.heatLayer(data, {radius: 25, minOpacity: 0.4, max: heatmap_data.maxDelay}).addTo(heatmapLayer)
 }
 
-// toggleDensityLayer()
+toggleDensityLayer()
 
 praeambel();
