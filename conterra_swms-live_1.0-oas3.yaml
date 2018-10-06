@@ -99,6 +99,30 @@ paths:
             'application/json':
               schema:
                 $ref: '#/components/schemas/Fehler'
+  /busse:
+    get:
+      summary: Bekannte Buspositionen
+      description: Gibt eine Liste aller bekannten Busse zurück
+      parameters:
+        - name: fahrtbezeichner
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Fahrtbezeichner
+      responses:
+        '200':
+          description: OK
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/FeatureCollection
+        default:
+          description: generic error response
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/Fehler'
   /fahrten/{id}:
     get:
       description: Abfrage einer bestimmten Fahrt mit Liniengeometrie
