@@ -38,19 +38,24 @@ def lookForStreets(streets, tweets):
 hits = lookForStreets(streetnames_preprocessed, tweets_preprocessed)
 
 
+def filterHashtags(text):
+    return text.replace('#Blitzer ','').replace('#msverkehr ', '')
+
+
+
 def retrieve_geodata(raw_data):
     geodata = []
     for street_tweet_list in raw_data:
         for tweet_tuple in street_tweet_list:
             geocode = GeoCoder.getLocation(streetnames[tweet_tuple[1]])
-            point = geo.Point((geocode[0],geocode[1]))
+            point = geo.Point((geocode[1], geocode[0]))
             tweet = tweets_last_week[tweet_tuple[0]]
             json = {
                 "type": "Feature",
-                    "geometry": geo.dumps(point),
+                    "geometry": point,
                     "properties": {
                         "username": tweet[2],
-                        "text": tweet[1],
+                        "text": filterHashtags(tweet[1]),
                         "time": str(tweet[0])
                     }
             }
