@@ -1,5 +1,5 @@
 const express = require('express');
-const morganBody = require( 'morgan-body');
+const morganBody = require('morgan-body');
 const bodyParser = require('body-parser');
 const rp = require('request-promise');
 const moment = require('moment');
@@ -10,7 +10,8 @@ const {
     Image,
     BasicCard,
     Button,
-    NewSurface
+    NewSurface,
+    List
 } = require('actions-on-google');
 
 // Create an app instance
@@ -19,7 +20,7 @@ const app = dialogflow();
 // Register handlers for Dialogflow intents
 
 app.intent('Default Welcome Intent', conv => {
-    conv.ask("Hallo Name. Ich bin der Münsterhack Bus Assistent. Deine nächstgelegene Haltestelle ist Stadtwerke / Hafen.")
+    conv.ask("Hallo Johannes. Ich bin der Münsterhäck Bus Assistent. Deine nächstgelegene Haltestelle ist Stadtwerke / Hafen.");
     if (!conv.surface.capabilities.has('actions.capability.SCREEN_OUTPUT')) {
         return;
     }
@@ -53,7 +54,7 @@ function sortFahrt(fahrt_a, fahrt_b) {
 }
 
 app.intent('Naechster Standardbus', conv => {
-    let haltestellenId = 4734101;
+    let haltestellenId = 4341501;
     let linienURL = `https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/haltestellen/${haltestellenId}`;
     var options = {
         uri: linienURL,
@@ -106,13 +107,13 @@ app.intent('Naechster Standardbus', conv => {
             } else {
                 conv.ask(new BasicCard({
                         title: "Die Karte für die Linie {l1}".replace("{l1}", linie1),
-                        text: "Auf der Karte haben wir den aktuellen Stand Deiner linie abgebildet. Klicke auf den Link, um die Live-Ansicht zu öffnen.",
+                        text: "Auf der Karte haben wir den aktuellen Stand Deiner Linie abgebildet. Klicke auf den Link, um die Live-Ansicht zu öffnen.",
                         image: new Image({
-                            url: "http://www.wisoveg.de/rheinland/vwm/busse/bus248i.jpg?64,45",
+                            url: "https://i.imgur.com/OFy34nD.png",
                             alt: "Deine Karte"
                         }),
                         buttons: new Button({
-                            url: `http://whatever/animate/scratch/?FahrtBezeichner=${sorted_fahrten[0].fahrtbezeichner}&halteid=${haltestellenId}`,
+                            url: `https://f8f72c2a.ngrok.io/animate/scratch/?FahrtBezeichner=${sorted_fahrten[0].fahrtbezeichner}&halteid=${haltestellenId}`,
                             title: "Live-Karte öffnen"
                         }),
                         display: 'CROPPED',
@@ -126,33 +127,62 @@ app.intent('Naechster Standardbus', conv => {
         });
 });
 
+app.intent('Aktuelle Probleme', conv => {
+    let tweets = [{
+        "type": "Feature",
+        "geometry": "{\"type\": \"Point\", \"coordinates\": [51.9906251, 7.5987517]}",
+        "properties": {
+            "username": "Polizei NRW MS",
+            "text": "#msverkehr Nach einem #Unfall auf der #SteinfurterStra\u00dfe stadtausw\u00e4rts, zwischen alter Eishalle und Abfahrt #Wilkinghege ist der rechte Fahrstreifen gesperrt.",
+            "time": "05:22 AM"
+        }
+    }];
+    if (tweets.length === 1) {
+        conv.ask(`Derzeit gibt es eine Meldung`);
+    }
+    else {
+        conv.ask(`Derzeit gibt es ${tweets.length} Meldungen`);
+    }
+    if (conv.surface.capabilities.has('actions.capability.SCREEN_OUTPUT')) {
+        if (tweets.length === 1) {
+            conv.ask(new BasicCard({
+                title: `${tweets[0].properties.username} - ${tweets[0].properties.time}`,
+                text: tweets[0].properties.text
+            }));
+        } else {
+            conv.ask(new List({
+                title: "Die letzten Tweets",
+                items: {
+                    "first_tweet": {
+                        title: `${tweets[0].properties.username} - ${tweets[0].properties.time}`,
+                        description: tweets[0].properties.text
+                    },
+                    "second_tweet": {
+                        title: `${tweets[1].properties.username} - ${tweets[1].properties.time}`,
+                        description: tweets[1].properties.text
+                    },
+                }
+            }));
+        }
+    } else {
+        let ssml = `<speak>${getTweet(tweets[0])} <break time="1s"/> Kann ich sonst noch was für Dich tun?</speak>`;
+        conv.ask(ssml);
+    }
+    // })
+    // .error(function (err) {
+    //     conv.ask("Leider gibt es derzeit ein Problem. Versuche es bitte später noch einmal")
+    // });
+
+    function getTweet(tweet) {
+        return `Um <say-as interpret-as="time" format="hms24">${tweet.properties.time}</say-as> tweetete ${tweet.properties.username} folgendes: <break time="1s"/> ${tweet.properties.text}`;
+    }
+});
+
 app.intent('push to screen', conv => {
     const capabilities = ['actions.capability.SCREEN_OUTPUT', 'actions.capability.WEB_BROWSER'];
     let notification = "Deine Buskarte";
     let context = "Ich kann Dir auch auf dem Handy eine Karte anzeigen";
     conv.ask(new NewSurface({context, notification, capabilities}));
-});
-
-app.intent('new_surface_intent', (conv, input, newSurface) => {
-    console.log("newsurface.status: " + newSurface.status);
-    if (newSurface.status === 'OK') {
-        conv.close(new BasicCard({
-                title: "Die Karte für die Linie {l1}".replace("{l1}", linie1),
-                text: "Auf der Karte haben wir den aktuellen Stand Deiner linie abgebildet. Klicke auf den Link, um die Live-Ansicht zu öffnen.",
-                image: new Image({
-                    url: "http://www.wisoveg.de/rheinland/vwm/busse/bus248i.jpg?64,45",
-                    alt: "Deine Karte"
-                }),
-                buttons: new Button({
-                    url: "http://heyho/animate/scratch/?FahrtBezeichner=-12862584&halteid=4734101",
-                    title: "Live-Karte öffnen"
-                }),
-                display: 'CROPPED',
-            })
-        )
-    } else {
-        conv.close(`Ok, I understand. You don't want to see pictures. Bye`);
-    }
 });
 
 function getAnswer() {
