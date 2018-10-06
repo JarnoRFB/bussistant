@@ -5,11 +5,8 @@ import json
 from copy import deepcopy
 import GeoCoder
 
-tweets_last_week = pickle.load(open("tweets.pickle", "rb"))
+tweets_last_week = pickle.load(open("filtered_tweets.pickle", "rb"))
 streetnames = pickle.load(open("strassennamen.pickle", "rb"))
-
-
-
 
 def preprocess(texts, tweets=True):
     texts2 = deepcopy(texts)
@@ -54,7 +51,7 @@ def retrieve_geodata(raw_data):
                     "properties": {
                         "username": tweet[2],
                         "text": tweet[1],
-                        "time": tweet[0]
+                        "time": str(tweet[0])
                     }
             }
             geodata.append(json)
@@ -62,7 +59,7 @@ def retrieve_geodata(raw_data):
 
 geodata = retrieve_geodata(hits)
 
-print(json.dumps(geodata))
+
 
 
 with open("geodata.json", 'w') as outfile:

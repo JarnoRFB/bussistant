@@ -38,8 +38,6 @@ class twitterminer():
         data = []
 
         for tweet in tweets:
-
-            print(tweet)
             if tweet.retweeted_status is None:
                 mined = (datetime.strptime(tweet.created_at, "%a %b %d %H:%M:%S %z %Y"), tweet.full_text, tweet.user.name)
                 data.append(mined)
