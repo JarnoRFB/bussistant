@@ -48,9 +48,18 @@ params = new URL(window.location.href).searchParams
 
 
 exampleSocket.onmessage = async function (event) {
+    response = await fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/busse");
+    response = await response.json();
+   for (let bus of response.features) {
+       if (bus.properties.fahrtbezeichner in markers) {
+           markers[bus.properties.fahrtbezeichner].delay = bus.properties.verspaetung
+       }
+       if (bus.properties.fahrtbezeichner in animatedMarkers) {
+           animatedMarkers[bus.properties.fahrtbezeichner].delay = bus.properties.verspaetung
+       }
+   }
     let vehicles = JSON.parse(event.data);
-    vehicles = filterBusses(vehicles, params)
-    console.log(vehicles)
+    vehicles = filterBusses(vehicles, params);
     for (let vehicle of vehicles) {
         if (vehicle.properties.operation === "UPDATE") {
             updateMarkers(vehicle)
@@ -140,20 +149,21 @@ const bindPopup = (vehicle, marker) => {
 
 
 const styleMarkerByDelay = async (vehicle, marker, label) => {
-    let response = await fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+vehicle.properties.FahrtBezeichner+"/stops")
-    response = await response.json()
-    response = response.stops.filter(stop => stop.properties.halteid === vehicle.properties.AktHst)
-    stop = response[0]
-    const delay = new Date(stop.properties.abfahrtprognose) - new Date(stop.properties.abfahrt)
+    // let response = await fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+vehicle.properties.FahrtBezeichner+"/stops")
+    // response = await response.json()
+    // response = response.stops.filter(stop => stop.properties.halteid === vehicle.properties.AktHst)
+    // stop = response[0]
+    // const delay = new Date(stop.properties.abfahrtprognose) - new Date(stop.properties.abfahrt)
     let delayInMinutes;
-    if (isNaN(delay)){
+    if (!(marker.delay)){
         delayInMinutes = 'unknown'
     } else {
-        delayInMinutes = new Date(delay).getMinutes()
+        delayInMinutes = parseInt(marker.delay.split(":")[1])
     }
-    marker.bindTooltip(`${delayInMinutes} minutes delay`)
+    marker.bindTooltip(`${delayInMinutes} minutes delay`);
+
     const icon = L.MakiMarkers.icon({icon: label, 
-                                        color: delayToColor(delayInMinutes), 
+                                        color: delayToColor(delayInMinutes),
                                         size: "m"});
     // const icon = L.divIcon(
     //     {classname: 'my-div-icon', 
