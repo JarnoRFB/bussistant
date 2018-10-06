@@ -21,9 +21,9 @@ L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={
 }).addTo(mymap);
 
 const fahrtGroup = L.layerGroup().addTo(mymap);
-const currentMarkerLayer = L.layerGroup()
-const animatedMarkerLayer = L.layerGroup().addTo(mymap)
-const heatmapLayer = L.layerGroup()
+const currentMarkerLayer = L.layerGroup().addTo(mymap);
+const animatedMarkerLayer = L.layerGroup().addTo(mymap);
+const heatmapLayer = L.layerGroup();
 
 const overlayMaps = {
     'Letzte Position': currentMarkerLayer,
