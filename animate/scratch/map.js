@@ -24,7 +24,7 @@ const exampleSocket = new WebSocket("wss://swms-conterra.fmecloud.com/websocket"
 const praeambel = function () {
     exampleSocket.onopen = function (event) {
         console.log("WebSocket is open now.");
-        vcount.textContent = "Websocket successfully connected.";
+        // vcount.textContent = "Websocket successfully connected.";
         exampleSocket.send('{ "ws_op":"open","ws_stream_ids":["swmslive"]}');
     }
 };
@@ -35,7 +35,7 @@ params = new URL(window.location.href).searchParams
 
 
 exampleSocket.onmessage = function (event) {
-    message.textContent = event.data;
+    // message.textContent = event.data;
     let vehicles = JSON.parse(event.data);
     // vehicles = vehicles.features.filter(vehicle => vehicle.properties.LinienID === '6') 
 
@@ -78,7 +78,7 @@ exampleSocket.onmessage = function (event) {
                     httpGetAsync("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+marker.fahrtbezeichner+"/stops", addStops);
                 });
 
-                fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+marker.fahrtbezeichner+"/stops")
+                fetch("https://swms-conterra.fmecloud.com/fmedatastreaming/IVU/service.fmw/fahrten/"+vehicle.properties.FahrtBezeichner+"/stops")
                 .then(response => response.json())
                 .then(response => response.stops.filter(stop => stop.properties.halteid === vehicle.properties.AktHst))
                 .then(stop => {
@@ -97,9 +97,13 @@ exampleSocket.onmessage = function (event) {
                 })
                 .then(delayInMinutes => {
                     marker.bindTooltip(`${delayInMinutes} minutes delay`).openTooltip()
-                    const icon = L.MakiMarkers.icon({icon: label, 
-                                                     color: delayToColor(delayInMinutes), 
-                                                     size: "m"});
+                    // const icon = L.MakiMarkers.icon({icon: label, 
+                    //                                  color: delayToColor(delayInMinutes), 
+                    //                                  size: "m"});
+                    const icon = L.divIcon(
+                        {classname: 'my-div-icon', 
+                         html: '<img class="busicon" src="Bus-logo.svg" alt="Kiwi standing on oval"></img>'
+                    });
                     marker.setIcon(icon)
                     marker.addTo(mymap);
                     markers[vehicle.properties.FahrtBezeichner] = marker;
@@ -130,9 +134,10 @@ exampleSocket.onmessage = function (event) {
         }
 
     }
-    vcount.textContent = "Currently live: " + Object.keys(markers).length + " Vehicles"
+    // vcount.textContent = "Currently live: " + Object.keys(markers).length + " Vehicles"
 };
-//-12847047
+
+
 function httpGetAsync(theUrl, callback)
 {
     var xmlHttp = new XMLHttpRequest();
@@ -235,5 +240,21 @@ function addStops(event) {
         cstop.addTo(fahrtGroup);
     }
 };
+
+
+const toggleDensityLayer = async () => {
+    console.log('heatmap')
+    let heatmap_data = await fetch('heatmap_data.json')
+    heatmap_data = await heatmap_data.json()
+    console.log(heatmap_data.meanDelays)
+    data = []
+    for (let stopInfo of Object.values(heatmap_data.meanDelays)){
+            console.log([stopInfo.coordinates[1], stopInfo.coordinates[0], stopInfo.mean])
+            data.push([stopInfo.coordinates[1], stopInfo.coordinates[0], stopInfo.mean])
+        }
+    const heat = L.heatLayer(data, {radius: 25, minOpacity: 0.4, max: heatmap_data.maxDelay}).addTo(mymap)
+}
+
+// toggleDensityLayer()
 
 praeambel();

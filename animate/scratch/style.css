@@ -1,3 +1,9 @@
 #mapid {
     height: 540px;
 }
+
+.busicon {
+    width: 30px;
+    height: 30px;
+    fill: green;
+}
