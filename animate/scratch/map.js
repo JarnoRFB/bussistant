@@ -28,7 +28,7 @@ const heatmapLayer = L.layerGroup()
 const overlayMaps = {
     'Letzte Position': currentMarkerLayer,
     'Live Position': animatedMarkerLayer,
-    'Verspätungsdichte': heatmapLayer,
+    'Verspaetungsdichte': heatmapLayer,
 };
 
 L.control.layers(overlayMaps).addTo(mymap);
@@ -151,7 +151,7 @@ const styleMarkerByDelay = async (vehicle, marker, label) => {
     } else {
         delayInMinutes = new Date(delay).getMinutes()
     }
-    marker.bindTooltip(`${delayInMinutes} minutes delay`)
+    marker.bindTooltip(`${delayInMinutes} Minuten Verspätung`)
     const icon = L.MakiMarkers.icon({icon: label, 
                                         color: delayToColor(delayInMinutes), 
                                         size: "m"});
