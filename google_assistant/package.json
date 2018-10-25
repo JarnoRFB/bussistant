@@ -1,0 +1,25 @@
+{
+  "name": "google_assistant",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "actions-on-google": "^2.4.1",
+    "compat": "^1.0.4",
+    "express": "^4.16.3",
+    "morgan-body": "^2.4.5",
+    "nodemon": "^1.18.4",
+    "qs": "^6.5.2",
+    "request": "^2.88.0",
+    "request-promise": "^4.2.2"
+  },
+  "devDependencies": {
+    "node-hot-loader": "^1.12.1",
+    "webpack": "^4.20.2"
+  }
+}
