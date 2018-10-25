@@ -23,11 +23,13 @@ const fahrtGroup = L.layerGroup().addTo(mymap)
 const currentMarkerLayer = L.layerGroup()
 const animatedMarkerLayer = L.layerGroup().addTo(mymap)
 const heatmapLayer = L.layerGroup()
+const trafficNewsLayer = L.layerGroup()
 
 const overlayMaps = {
   'Letzte Position': currentMarkerLayer,
   'Live Position': animatedMarkerLayer,
-  'Verspaetungsdichte': heatmapLayer
+  'Verspaetungsdichte': heatmapLayer,
+  'Verkehrsnachrichten': trafficNewsLayer
 }
 
 L.control.layers(overlayMaps).addTo(mymap)
@@ -269,7 +271,7 @@ function addStops (event) {
   }
 };
 
-const toggleDensityLayer = async () => {
+const addDensityLayer = async () => {
   console.log('heatmap')
   let heatmapData = await fetch('heatmap_data.json')
   heatmapData = await heatmapData.json()
@@ -280,6 +282,33 @@ const toggleDensityLayer = async () => {
   L.heatLayer(data, { radius: 25, minOpacity: 0.4, max: heatmapData.maxDelay }).addTo(heatmapLayer)
 }
 
-toggleDensityLayer()
+const addTrafficNewsLayer = async () => {
+  let response = await fetch('traffic_twitter.json')
+  if (response.ok) {
+    let trafficNews = await response.json()
+    console.log('news', trafficNews)
+    for (let newsItem of trafficNews) {
+      L.geoJSON(newsItem, { onEachFeature: onEachFeature,
+        pointToLayer: getTrafficNewsIcon
+      })
+        .addTo(trafficNewsLayer)
+    }
+    mymap.setView(flip(trafficNews[0].geometry.coordinates))
+  }
+}
+
+const onEachFeature = (feature, layer) => {
+  if (feature.properties && feature.properties.username && feature.properties.text) {
+    layer.bindPopup(`<h3>${feature.properties.username}</h3><p>${feature.properties.text}</p>`)
+  }
+}
+
+const getTrafficNewsIcon = (feature, latlng) => {
+  const icon = L.MakiMarkers.icon({ icon: 'roadblock', color: '#cc0000', size: 's' })
+  return L.marker(latlng, { icon: icon })
+}
 
 praeambel()
+
+addDensityLayer()
+addTrafficNewsLayer()
